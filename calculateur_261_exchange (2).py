@@ -39,8 +39,8 @@ except Exception as e:
     st.stop()
 
 # === TAUX ===
-taux_crypto_depot = 4850
-taux_crypto_retrait = 4300
+taux_crypto_depot = 4950
+taux_crypto_retrait = 4200
 taux_fiat = 4750
 taux_fiat_retrait = 4300
 taux_autres_retrait = 4400
