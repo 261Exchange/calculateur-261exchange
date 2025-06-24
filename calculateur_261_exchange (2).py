@@ -1,55 +1,55 @@
-import streamlit as st import datetime import pandas as pd import requests import matplotlib.pyplot as plt from io import BytesIO import base64
+import streamlit as st import datetime import pandas as pd import requests from io import BytesIO
 
-Configuration de la page
+Configuration de la page et affichage du logo
 
 st.set_page_config(page_title="261 Exchange – Calculateur Pro") st.image("https://raw.githubusercontent.com/261Exchange/calculateur-261exchange/main/logo_261exchange.png", width=200)
 
 st.title("261 Exchange – Calculateur Pro") st.write("Calcule rapidement le solde à envoyer à tes clients selon le taux, les frais, et le service choisi.")
 
-Définition des cryptomonnaies avec frais (uniquement pour les dépôts)
+Données de frais de dépôt pour cryptomonnaies
 
-crypto_fees = { "TRX": 1, "BNB": 0.00009, "ETH": 0.0004, "BTC": 0.00003, "XRP": 0.2, "SOL": 0.001, "DOGE": 1, "LTC": 0.00015, "SUI": 0.07, "MATIC": 1, "TON": 0.03 }
+crypto_frais = { "Tron": 1, "BNB": 0.00009, "ETH": 0.0004, "BTC": 0.00003, "XRP": 0.2, "SOL": 0.001, "Doge": 1, "LTC": 0.00015, "SUI": 0.07, "Polygone": 1, "Toncoin": 0.03 }
 
-Saisie des données
+Liste des services
 
-operation = st.selectbox("Type d'opération :", ["Dépôt (4850 Ar/USD)", "Retrait (4300 Ar/USD)"]) service = st.selectbox("Crypto utilisée :", list(crypto_fees.keys()))
+services = list(crypto_frais.keys()) + ["Skrill", "Neteller", "Payeer", "AIRTM", "Deriv"]
 
-col1, col2 = st.columns(2) with col1: montant_ariary = st.number_input("Montant payé en Ariary", min_value=0.0, value=0.0, step=1000.0) with col2: montant_usd = st.number_input("Montant en USD", min_value=0.0, value=0.0, step=1.0)
+Interface utilisateur
 
-Calcul automatique selon la saisie
+operation = st.selectbox("Type d'opération :", ["Dépôt (4850 Ar/USD)", "Retrait (4300 Ar/USD sauf 4 autres à 4400 Ar)"]) service = st.selectbox("Service utilisé :", services)
 
-if montant_usd > 0: taux = 4850 if operation == "Dépôt (4850 Ar/USD)" else 4300 montant_ariary = montant_usd * taux elif montant_ariary > 0: taux = 4850 if operation == "Dépôt (4850 Ar/USD)" else 4300 montant_usd = montant_ariary / taux
+mode_saisie = st.radio("Choisir le mode de calcul :", ["Montant payé en Ariary", "Montant à envoyer en USD"])
 
-Application des frais uniquement sur les dépôts
+if mode_saisie == "Montant payé en Ariary": montant_ariary = st.number_input("Montant payé par le client (en Ariary)", min_value=0.0, step=100.0) else: montant_usd = st.number_input("Montant à envoyer (en USD)", min_value=0.0, step=1.0)
 
-frais_crypto = crypto_fees[service] if operation == "Dépôt (4850 Ar/USD)" else 0
+Détermination du taux
 
-Affichage du résultat
+if operation.startswith("Dépôt"): taux = 4850 frais = crypto_frais.get(service, 0) else: taux = 4300 if service in crypto_frais else 4400 frais = 0.0
+
+Calcul
+
+if mode_saisie == "Montant payé en Ariary" and montant_ariary: montant_usd = montant_ariary / taux montant_net = montant_usd - frais elif mode_saisie == "Montant à envoyer en USD" and montant_usd: montant_ariary = (montant_usd + frais) * taux montant_net = montant_usd else: montant_net = 0.0
+
+Affichage des résultats
 
 st.markdown("""
 
 💡 Résultat
 
-🔹 Montant à envoyer : {:.2f} {}
+🔹 Montant à envoyer : %.2f USD
 
-🟠 Frais appliqués : {:.6f} {}
+🟠 Frais appliqués : %.2f USD
 
-📅 Détail : {} Ar / USD x {:.2f} USD = {:.2f} Ar """.format(montant_usd, service, frais_crypto, service, taux, montant_usd, montant_ariary))
+📊 Montant payé par le client : %.0f Ariary
+
+🔢 Détail du calcul : %.2f USD + %.2f USD de frais × %.0f Ar/USD """ % (montant_net, frais, montant_ariary if mode_saisie == "Montant payé en Ariary" else montant_ariary, montant_net, frais, taux))
 
 
 Export PNG
 
-if st.button("📂 Exporter en PNG"): fig, ax = plt.subplots() ax.axis('off') ax.text(0.01, 0.9, f"261 Exchange – Calculateur Pro", fontsize=14, fontweight='bold') ax.text(0.01, 0.7, f"Montant à envoyer : {montant_usd:.2f} {service}") ax.text(0.01, 0.6, f"Frais appliqués : {frais_crypto:.6f} {service}") ax.text(0.01, 0.5, f"Taux utilisé : {taux} Ar/USD") ax.text(0.01, 0.4, f"Montant total en Ariary : {montant_ariary:.2f} Ar") buf = BytesIO() plt.savefig(buf, format="png") st.image(buf)
+from matplotlib import pyplot as plt fig, ax = plt.subplots() ax.axis('off') texte = f"Service : {service}\nType : {operation}\nMontant client : {montant_ariary:.0f} Ar\nMontant USD : {montant_net:.2f} USD\nFrais : {frais:.2f} USD" ax.text(0.5, 0.5, texte, fontsize=12, ha='center', va='center') buffer = BytesIO() fig.savefig(buffer, format="png") st.download_button("📁 Exporter en PNG", buffer.getvalue(), file_name="calcul.png", mime="image/png")
 
-Copier / partager (affichage HTML simplifié)
+Copier et partager
 
-resultat = f"Montant: {montant_usd:.2f} {service}\nFrais: {frais_crypto:.6f} {service}\nTotal en Ar: {montant_ariary:.2f} Ar" st.code(resultat)
-
-Historique (simple sauvegarde dans session)
-
-if 'historique' not in st.session_state: st.session_state['historique'] = []
-
-if st.button("✅ Enregistrer l'historique"): st.session_state['historique'].append({ 'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), 'operation': operation, 'crypto': service, 'usd': montant_usd, 'ariary': montant_ariary, 'frais': frais_crypto })
-
-if st.checkbox("📃 Voir l'historique"): historique_df = pd.DataFrame(st.session_state['historique']) st.dataframe(historique_df)
+if st.button("🔍 Copier le résultat"): st.code(texte, language='text')
 
