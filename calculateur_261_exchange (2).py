@@ -1,165 +1,55 @@
-import streamlit as st
-import datetime
-import pandas as pd
-import requests
-import matplotlib.pyplot as plt
-from io import BytesIO
+import streamlit as st import datetime import pandas as pd import requests import matplotlib.pyplot as plt from io import BytesIO import base64
 
-# Configuration de la page
-st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="centered")
+Configuration de la page
 
-# Logo
-st.image("https://261exchange.com/logo.png", width=200)
+st.set_page_config(page_title="261 Exchange – Calculateur Pro") st.image("https://raw.githubusercontent.com/261Exchange/calculateur-261exchange/main/logo_261exchange.png", width=200)
 
-st.title("💱 261 Exchange – Calculateur Pro")
-st.write("Calcule rapidement le montant à envoyer ou à recevoir selon le taux, les frais et le sens de conversion.")
+st.title("261 Exchange – Calculateur Pro") st.write("Calcule rapidement le solde à envoyer à tes clients selon le taux, les frais, et le service choisi.")
 
-# Récupération des cours crypto
-crypto_ids = {
-    "TRX": "tron",
-    "BNB": "binancecoin",
-    "ETH": "ethereum",
-    "BTC": "bitcoin",
-    "XRP": "ripple",
-    "SOL": "solana",
-    "DOGE": "dogecoin",
-    "LTC": "litecoin",
-    "SUI": "sui",
-    "MATIC": "polygon",
-    "TON": "the-open-network"
-}
+Définition des cryptomonnaies avec frais (uniquement pour les dépôts)
 
-crypto_frais = {
-    "TRX": 1,
-    "BNB": 0.00009,
-    "ETH": 0.0004,
-    "BTC": 0.00003,
-    "XRP": 0.2,
-    "SOL": 0.001,
-    "DOGE": 1,
-    "LTC": 0.00015,
-    "SUI": 0.07,
-    "MATIC": 1,
-    "TON": 0.03
-}
+crypto_fees = { "TRX": 1, "BNB": 0.00009, "ETH": 0.0004, "BTC": 0.00003, "XRP": 0.2, "SOL": 0.001, "DOGE": 1, "LTC": 0.00015, "SUI": 0.07, "MATIC": 1, "TON": 0.03 }
 
-url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(crypto_ids.values())}&vs_currencies=usd"
-response = requests.get(url)
-crypto_prices = response.json()
+Saisie des données
 
-# Affichage des taux
-st.subheader("📊 Cours actuels des cryptomonnaies")
-for symbol, coingecko_id in crypto_ids.items():
-    usd_price = crypto_prices[coingecko_id]["usd"]
-    ar_depot = usd_price * 4850
-    ar_retrait = usd_price * 4300
-    st.markdown(f"**{symbol}**: {usd_price:.6f} USD | Dépôt: {ar_depot:,.0f} Ar | Retrait: {ar_retrait:,.0f} Ar")
+operation = st.selectbox("Type d'opération :", ["Dépôt (4850 Ar/USD)", "Retrait (4300 Ar/USD)"]) service = st.selectbox("Crypto utilisée :", list(crypto_fees.keys()))
 
-# Historique utilisateur
-if "historique" not in st.session_state:
-    st.session_state.historique = []
+col1, col2 = st.columns(2) with col1: montant_ariary = st.number_input("Montant payé en Ariary", min_value=0.0, value=0.0, step=1000.0) with col2: montant_usd = st.number_input("Montant en USD", min_value=0.0, value=0.0, step=1.0)
 
-# Formulaire utilisateur
-operation = st.selectbox("Type d'opération :", ["Dépôt (4850 Ar/USD)", "Retrait (4300 Ar/USD sauf 4400 Ar)"])
-service = st.selectbox("Service utilisé :", [
-    "Deriv", "Skrill", "Neteller", "Payeer", "AIRTM", "Binance", "OKX", "FaucetPay", "Bitget",
-    "Redotpay", "Tether TRC20", "Cwallet", "Tether BEP20", "Bybit", "MEXC",
-    "TRX", "BNB", "ETH", "BTC", "XRP", "SOL", "DOGE", "LTC", "SUI", "MATIC", "TON"
-])
+Calcul automatique selon la saisie
 
-sens = st.radio("Sens de conversion :", ["🔁 Ariary ➜ USD", "🔁 USD ➜ Ariary"])
+if montant_usd > 0: taux = 4850 if operation == "Dépôt (4850 Ar/USD)" else 4300 montant_ariary = montant_usd * taux elif montant_ariary > 0: taux = 4850 if operation == "Dépôt (4850 Ar/USD)" else 4300 montant_usd = montant_ariary / taux
 
-# Entrées utilisateur
-montant_ariary = 0
-montant_usd = 0
+Application des frais uniquement sur les dépôts
 
-if sens == "🔁 Ariary ➜ USD":
-    montant_ariary = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
-else:
-    montant_usd = st.number_input("Montant à envoyer (en USD)", min_value=0.0, step=0.01)
+frais_crypto = crypto_fees[service] if operation == "Dépôt (4850 Ar/USD)" else 0
 
-# Taux & frais
-is_crypto = service in crypto_ids.keys()
+Affichage du résultat
 
-if operation.startswith("Dépôt"):
-    taux = 4850
-    frais = 0.0
-    if is_crypto:
-        usd_price = crypto_prices[crypto_ids[service]]["usd"]
-        frais = usd_price * crypto_frais[service]
-    elif service in ["Skrill", "Neteller", "Payeer"]:
-        if sens == "🔁 Ariary ➜ USD" and montant_ariary / taux <= 35:
-            frais = 0.58
-        else:
-            frais = (montant_ariary * 0.0145 / taux) if sens == "🔁 Ariary ➜ USD" else (montant_usd * 0.0145)
-    elif service == "Tether TRC20":
-        frais = 1.00
-else:
-    taux = 4300 if (is_crypto or service in ["Skrill", "Neteller", "Payeer", "AIRTM"]) else 4400
-    frais = 0.0
+st.markdown("""
 
-# Calcul
-if sens == "🔁 Ariary ➜ USD":
-    montant_usd_brut = montant_ariary / taux
-    montant_final = montant_usd_brut - frais
-else:
-    montant_ariary = (montant_usd + frais) * taux
-    montant_final = montant_usd
+💡 Résultat
 
-# Résultat utilisateur
-st.markdown("### 💡 Résultat")
-st.write(f"📤 Montant à envoyer : **{montant_final:.2f} USD**")
-st.write(f"🔸 Frais appliqués : **{frais:.6f} USD**")
-if sens == "🔁 USD ➜ Ariary":
-    st.write(f"💵 Montant à recevoir : **{montant_ariary:.0f} Ar**")
+🔹 Montant à envoyer : {:.2f} {}
 
-# Historique
-now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-st.session_state.historique.append({
-    "Date": now,
-    "Opération": operation,
-    "Service": service,
-    "Montant MGA": f"{montant_ariary:.0f} Ar",
-    "Montant USD": f"{montant_final:.2f} USD",
-    "Frais": f"{frais:.6f} USD"
-})
+🟠 Frais appliqués : {:.6f} {}
 
-# Copier et exporter
-if st.button("📋 Copier le résultat"):
-    st.code(f"{montant_final:.2f} USD | {montant_ariary:.0f} Ar", language='text')
+📅 Détail : {} Ar / USD x {:.2f} USD = {:.2f} Ar """.format(montant_usd, service, frais_crypto, service, taux, montant_usd, montant_ariary))
 
-df = pd.DataFrame(st.session_state.historique)
-st.download_button("⬇️ Exporter CSV", data=df.to_csv().encode(), file_name="historique_261_exchange.csv", mime="text/csv")
 
-# Export PNG
-if st.button("🖼️ Exporter en PNG"):
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.axis('off')
-    detail = [
-        ["Date", now],
-        ["Opération", operation],
-        ["Service", service],
-        ["Sens", sens],
-        ["Taux utilisé", f"{taux:.0f} Ar/USD"],
-        ["Frais", f"{frais:.6f} USD"],
-        ["Montant payé (MGA)", f"{montant_ariary:.0f} Ar" if montant_ariary > 0 else "-"],
-        ["Montant à envoyer (USD)", f"{montant_usd:.2f} USD" if montant_usd > 0 else "-"],
-        ["Montant final reçu", f"{montant_final:.2f} USD" if sens == "🔁 Ariary ➜ USD" else f"{montant_ariary:.0f} Ar"]
-    ]
-    table = ax.table(cellText=detail, colLabels=["Détail", "Valeur"], loc='center')
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1, 1.5)
-    buf = BytesIO()
-    plt.savefig(buf, format="png")
-    st.download_button("📥 Télécharger le PNG", data=buf.getvalue(), file_name="calcul_261_exchange.png", mime="image/png")
+Export PNG
 
-# Accès admin
-st.markdown("---")
-admin_pw = st.text_input("🔒 Mot de passe admin", type="password")
-if admin_pw == "admin261exchange":
-    st.success("✅ Accès administrateur autorisé")
-    st.subheader("📜 Historique complet de session")
-    st.dataframe(df)
-else:
-    st.info("Seul l’administrateur peut consulter l’historique complet.")
+if st.button("📂 Exporter en PNG"): fig, ax = plt.subplots() ax.axis('off') ax.text(0.01, 0.9, f"261 Exchange – Calculateur Pro", fontsize=14, fontweight='bold') ax.text(0.01, 0.7, f"Montant à envoyer : {montant_usd:.2f} {service}") ax.text(0.01, 0.6, f"Frais appliqués : {frais_crypto:.6f} {service}") ax.text(0.01, 0.5, f"Taux utilisé : {taux} Ar/USD") ax.text(0.01, 0.4, f"Montant total en Ariary : {montant_ariary:.2f} Ar") buf = BytesIO() plt.savefig(buf, format="png") st.image(buf)
+
+Copier / partager (affichage HTML simplifié)
+
+resultat = f"Montant: {montant_usd:.2f} {service}\nFrais: {frais_crypto:.6f} {service}\nTotal en Ar: {montant_ariary:.2f} Ar" st.code(resultat)
+
+Historique (simple sauvegarde dans session)
+
+if 'historique' not in st.session_state: st.session_state['historique'] = []
+
+if st.button("✅ Enregistrer l'historique"): st.session_state['historique'].append({ 'date': datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), 'operation': operation, 'crypto': service, 'usd': montant_usd, 'ariary': montant_ariary, 'frais': frais_crypto })
+
+if st.checkbox("📃 Voir l'historique"): historique_df = pd.DataFrame(st.session_state['historique']) st.dataframe(historique_df)
+
