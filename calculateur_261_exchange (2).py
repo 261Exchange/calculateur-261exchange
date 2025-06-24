@@ -26,7 +26,7 @@ def get_cours_cryptos():
         "Doge": "dogecoin",
         "LTC": "litecoin",
         "SUI": "sui",
-        "Polygone": "polygon",
+        "Polygone": "matic-network",
         "Toncoin": "the-open-network"
     }
     url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(ids.values())}&vs_currencies=usd"
