@@ -1,6 +1,8 @@
 import streamlit as st
 import datetime
 import pandas as pd
+from PIL import Image, ImageDraw
+import io
 
 # Configuration de la page
 st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="centered")
@@ -25,6 +27,15 @@ def calcul_frais(service, sens, montant_ariary, montant_usd, taux):
     elif service == "Tether TRC20":
         return 1.00
     return 0.0
+
+# Fonction pour créer une image du résultat
+def create_result_image(montant_usd, montant_ariary, frais):
+    img = Image.new("RGB", (600, 200), color="white")
+    d = ImageDraw.Draw(img)
+    d.text((10, 20), f"Montant à envoyer : {montant_usd:.2f} USD", fill="black")
+    d.text((10, 60), f"Frais appliqués : {frais:.2f} USD", fill="black")
+    d.text((10, 100), f"Montant à recevoir : {montant_ariary:.0f} Ar", fill="black")
+    return img
 
 # Formulaire
 operation = st.selectbox("Type d'opération :", ["Dépôt (4750 Ar/USD)", "Retrait (4400 Ar/USD sauf 4300 Ar)"])
@@ -79,6 +90,12 @@ if (sens == "🔁 Ariary ➔ USD" and montant_ariary > 0) or (sens == "🔁 USD 
 
     if st.button("📋 Copier le résultat"):
         st.code(f"{montant_final:.2f} USD | {montant_ariary:.0f} Ar", language='text')
+
+    if st.button("📷 Exporter en PNG"):
+        img = create_result_image(montant_final, montant_ariary, frais)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        st.download_button("Télécharger l'image", buf.getvalue(), "resultat.png", mime="image/png")
 
 # Export & Historique
 if st.button("🔄 Réinitialiser l'historique"):
