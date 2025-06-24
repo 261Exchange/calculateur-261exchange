@@ -17,7 +17,7 @@ if "historique" not in st.session_state:
 # === FONCTION POUR OBTENIR LES COURS ACTUELS EN USD ===
 def get_cours_cryptos():
     ids = {
-        "Tron": "tron",
+        "Tron": "tronix",
         "BNB": "binancecoin",
         "ETH": "ethereum",
         "BTC": "bitcoin",
