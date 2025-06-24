@@ -7,6 +7,7 @@ st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="center
 st.title("💱 261 Exchange – Calculateur Pro")
 st.write("Calculez le montant en crypto ou en Ariary selon l'opération.")
 
+# === SERVICES ET CONFIGURATION ===
 cryptos = {
     "tron": {"symbol": "TRX", "fee": 1},
     "bitcoin": {"symbol": "BTC", "fee": 0.00003},
@@ -19,6 +20,10 @@ cryptos = {
     "sui": {"symbol": "SUI", "fee": 0.07},
     "the-open-network": {"symbol": "TON", "fee": 0.03}
 }
+
+services_fiats = ["Skrill", "Neteller", "Payeer", "AIRTM", "Tether BEP20"]
+services_1usd_fee = ["Tether TRC20"]
+autres_services = ["OKX", "Binance", "FaucetPay", "Bitget", "Redotpay", "Cwallet", "Bybit", "MEXC", "Deriv"]
 
 @st.cache_data(ttl=300)
 def get_prices():
@@ -33,40 +38,46 @@ except Exception as e:
     st.error(f"Erreur lors de la récupération des cours : {e}")
     st.stop()
 
-taux_crypto_depot = 4950
-taux_crypto_retrait = 4250
+# === TAUX ===
+taux_crypto_depot = 4850
+taux_crypto_retrait = 4300
 taux_fiat = 4750
 taux_fiat_retrait = 4300
 taux_autres_retrait = 4400
 
+# === AFFICHER PRIX UNITAIRE CRYPTO ===
 st.subheader("🔍 Prix unitaire d’une cryptomonnaie")
 selected_crypto = st.selectbox("Choisir une crypto :", list(cryptos.keys()), format_func=lambda x: cryptos[x]["symbol"])
 if selected_crypto in prices:
     st.info(f"💲 1 {cryptos[selected_crypto]['symbol']} = {prices[selected_crypto]['usd']} USD")
 
+# === CALCULATEUR PRINCIPAL ===
 st.subheader("🔁 Conversion")
 operation = st.radio("Type d'opération :", ["Dépôt", "Retrait"])
-service = st.selectbox("Service utilisé :", [
-    "Skrill", "Neteller", "Payeer", "AIRTM", "Tether BEP20"
-] + list(cryptos.keys()) + ["Autre"])
+all_services = services_fiats + services_1usd_fee + list(cryptos.keys()) + autres_services
+service = st.selectbox("Service utilisé :", all_services)
 sens = st.radio("Sens de conversion :", ["Ariary ➜ USD/Crypto", "USD/Crypto ➜ Ariary"])
 
 is_crypto = service in cryptos
-frais = 0
 cours = prices[service]["usd"] if is_crypto else None
+frais = 0
 
+# === TAUX PAR SERVICE ===
 if is_crypto:
     taux = taux_crypto_depot if operation == "Dépôt" else taux_crypto_retrait
-    frais = cryptos[service]['fee']
-elif service in ["Skrill", "Neteller"]:
+    frais = cryptos[service]["fee"]
+elif service in services_fiats:
     taux = taux_fiat if operation == "Dépôt" else taux_fiat_retrait
-elif service in ["Payeer", "AIRTM", "Tether BEP20"]:
+elif service in services_1usd_fee:
     taux = taux_fiat if operation == "Dépôt" else taux_fiat_retrait
+    if operation == "Dépôt":
+        frais = 1
 else:
     taux = taux_fiat if operation == "Dépôt" else taux_autres_retrait
 
+# === CALCULS ===
 st.write("---")
-montant_final = ""
+result_text = ""
 if sens == "Ariary ➜ USD/Crypto":
     montant_ariary = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
     montant_usd = montant_ariary / taux
@@ -76,15 +87,15 @@ if sens == "Ariary ➜ USD/Crypto":
 
     if is_crypto:
         montant_crypto = montant_usd / cours
-        montant_final = montant_crypto - frais
-        st.success(f"🪙 Montant à envoyer : {montant_final:.6f} {cryptos[service]['symbol']}")
+        montant_net = montant_crypto - frais
+        st.success(f"🪙 Montant à envoyer : {montant_net:.6f} {cryptos[service]['symbol']}")
         st.write(f"💸 Frais appliqués : {frais} {cryptos[service]['symbol']}")
-        result_text = f"{montant_final:.6f} {cryptos[service]['symbol']} | {montant_ariary:.0f} Ar"
+        result_text = f"{montant_net:.6f} {cryptos[service]['symbol']} | {montant_ariary:.0f} Ar"
     else:
-        montant_final = montant_usd - frais
-        st.success(f"💵 Montant à envoyer : {montant_final:.2f} USD")
+        montant_net = montant_usd - frais
+        st.success(f"💵 Montant à envoyer : {montant_net:.2f} USD")
         st.write(f"💸 Frais appliqués : {frais:.2f} USD")
-        result_text = f"{montant_final:.2f} USD | {montant_ariary:.0f} Ar"
+        result_text = f"{montant_net:.2f} USD | {montant_ariary:.0f} Ar"
 
 else:
     if is_crypto:
@@ -103,12 +114,12 @@ else:
         st.write(f"💸 Frais appliqués : {frais:.2f} USD")
         result_text = f"{montant_usd:.2f} USD ➜ {montant_ariary:.0f} Ar"
 
-# 💾 Bouton pour copier le résultat
+# === BOUTON DE COPIE ===
 if result_text:
     st.markdown("### 📋 Copier le résultat")
     st.code(result_text)
 
-# Historique
+# === HISTORIQUE ===
 if "historique" not in st.session_state:
     st.session_state.historique = []
 
@@ -118,7 +129,7 @@ st.session_state.historique.append({
     "Opération": operation,
     "Service": service,
     "Résultat": result_text,
-    "Frais": f"{frais:.6f} {cryptos[service]['symbol']}" if is_crypto else f"{frais:.2f} USD"
+    "Frais": f"{frais:.6f}" if isinstance(frais, float) else frais
 })
 
 df = pd.DataFrame(st.session_state.historique)
