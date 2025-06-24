@@ -62,6 +62,7 @@ usd_net = "-"
 crypto_net = "-"
 frais = 0.0
 
+# Dépôt vers USD ou Crypto
 if operation == "💰 Dépôt ➜ Montant à envoyer":
     montant_mga = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
 
@@ -84,7 +85,6 @@ if operation == "💰 Dépôt ➜ Montant à envoyer":
             st.success(f"🪙 Montant à envoyer : {crypto_net:.6f} {service}")
             st.write(f"🔸 Frais : {frais:.6f} {service}")
 
-        # Historique
         now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
         st.session_state.historique.append({
             "Date": now,
@@ -95,16 +95,7 @@ if operation == "💰 Dépôt ➜ Montant à envoyer":
             "Frais": f"{frais:.2f} USD" if info["type"] == "usd" else f"{frais:.6f} {service}"
         })
 
+# Réception vers Ariary
 else:
     if info["type"] == "usd":
-        montant_usd = st.number_input("Montant à envoyer (en USD)", min_value=0.0, step=1.0)
-        if st.button("✅ Valider le calcul"):
-            montant_ariary = montant_usd * taux
-            st.success(f"💵 Montant à recevoir : {montant_ariary:.0f} Ar (Frais inclus)")
-
-            now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-            st.session_state.historique.append({
-                "Date": now,
-                "Opération": operation,
-                "Service": service,
-                "Montant MGA": f"{montant_ariary:.0f} Ar",
+        montant_usd = st.number_input("Montant à envoyer (en USD)", min_value=0.0, ste_
