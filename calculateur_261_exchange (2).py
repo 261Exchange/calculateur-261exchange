@@ -1,52 +1,74 @@
-import streamlit as st
+import streamlit as st import datetime import io import pandas as pd
 
-st.set_page_config(page_title="261 Exchange - Calculateur Pro")
+st.set_page_config(page_title="261 Exchange - Calculateur Pro", layout="centered")
 
-st.title("261 Exchange - Calculateur Pro")
-st.write("Calcule rapidement le solde à envoyer à tes clients selon le taux, les frais, et le service choisi.")
+st.image("https://i.imgur.com/O8Y6UeD.png", width=180)
 
-# Choix de l'opération
-operation = st.selectbox("Type d'opération :", ["Dépôt (4750 Ar/USD)", "Retrait (4400 Ar/USD sauf 4300 Ar)"])
+st.title("Calculateur de conversion")
 
-# Choix du service
-services = [
-    "Deriv", "Binance", "USDT_TRC20", "Skrill", "Neteller", "Payeer", "AirTM",
-    "OKX", "Bitget", "Redotpay", "Cwallet", "Tether_BEP20", "Bybit", "MEXC", "FaucetPay"
-]
-service = st.selectbox("Service utilisé :", services)
+Taux personnalisés
 
-# Montant et marge
-montant_ariary = st.number_input("Montant payé par le client (en Ariary)", min_value=0.0, step=100.0)
-marge = st.number_input("Marge appliquée (%)", min_value=0.0, step=0.1)
+Taux_DEPOT = 4750 Taux_RETRAIT_STANDARD = 4400 Taux_RETRAIT_SPECIAL = 4300 SERVICES_SPECIAUX = ["Skrill - USD", "Neteller - USD", "Payeer - USD", "AIRTM - USDC"] SERVICES = [ "Skrill - USD", "Neteller - USD", "Payeer - USD", "AIRTM - USDC", "Binance - USDT", "OKX - USDT", "FaucetPay - USDT", "Bitget - USDT", "Redotpay - USDT", "Tether TRC20 - USDT", "Cwallet - USDT", "Tether BEP20 - USDT", "Bybit - USDT", "MEXC - USDT", "Deriv - USD" ]
 
-# Définir le taux de change
-if operation == "Dépôt (4750 Ar/USD)":
-    taux = 4750
-elif service in ["Skrill", "Neteller", "Payeer", "AirTM"]:
-    taux = 4300
-else:
-    taux = 4400
+operation = st.radio("Type d'opération", ["Dépôt (Ariary → USD)", "Retrait (USD → Ariary)"]) service = st.selectbox("Service utilisé", SERVICES) mode = st.radio("Saisie de base", ["Montant en Ariary", "Montant en USD"])
 
-# Conversion brut
-montant_usd_brut = montant_ariary / taux
-montant_usd_net = montant_usd_brut * (1 - marge / 100)
+result = {}
 
-# Frais selon service
+if operation == "Dépôt (Ariary → USD)": taux = Taux_DEPOT if mode == "Montant en Ariary": montant_ariary = st.number_input("Montant payé (Ar)", min_value=0.0, step=100.0) montant_usd = montant_ariary / taux else: montant_usd = st.number_input("Montant à envoyer (USD)", min_value=0.0, step=1.0) montant_ariary = montant_usd * taux
+
 frais = 0.0
-if service == "USDT_TRC20":
+if service == "Tether TRC20 - USDT":
     frais = 1.0
-elif service in ["Skrill", "Neteller"]:
-    if montant_usd_net > 35:
-        frais = montant_usd_net * 0.0145
-    else:
-        frais = 0.58
+elif service in ["Skrill - USD", "Neteller - USD"]:
+    frais = 0.58 if montant_usd <= 35 else montant_usd * 0.0145
 
-# Résultat final
-montant_final = montant_usd_net - frais
-benefice = montant_usd_brut * (marge / 100)
+montant_usd_final = montant_usd - frais
 
-# Affichage
-st.subheader("💡 Résultat")
-st.write(f"🔷 Montant à envoyer : **{montant_final:.2f} USD**")
-st.write(f"🟠 Frais appliqués : **{frais:.2f} USD**")
-st.write(f"🟢 Bénéfice net estimé : **{benefice:.2f} USD**")
+result = {
+    "Type": "Dépôt",
+    "Service": service,
+    "Montant payé (Ar)": montant_ariary,
+    "Montant à envoyer (USD)": round(montant_usd_final, 2),
+    "Frais": round(frais, 2),
+    "Taux appliqué": taux
+}
+
+else: taux = Taux_RETRAIT_SPECIAL if service in SERVICES_SPECIAUX else Taux_RETRAIT_STANDARD if mode == "Montant en USD": montant_usd = st.number_input("Montant à retirer (USD)", min_value=0.0, step=1.0) montant_ariary = montant_usd * taux else: montant_ariary = st.number_input("Montant à recevoir (Ar)", min_value=0.0, step=100.0) montant_usd = montant_ariary / taux
+
+result = {
+    "Type": "Retrait",
+    "Service": service,
+    "Montant reçu (USD)": round(montant_usd, 2),
+    "Montant à demander (Ar)": round(montant_ariary, 0),
+    "Frais": 0.0,
+    "Taux appliqué": taux
+}
+
+if result: st.subheader("Résultat") for k, v in result.items(): st.write(f"{k} : {v}")
+
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("📋 Copier les résultats"):
+        st.write("Résultats copiés !")
+with col2:
+    if st.button("🔄 Réinitialiser"):
+        st.experimental_rerun()
+
+export_format = st.selectbox("Exporter en format", ["CSV", "PDF (à venir)", "PNG (à venir)", "JPEG (à venir)"])
+if export_format == "CSV":
+    df = pd.DataFrame([result])
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Télécharger CSV", csv, "resultat_261exchange.csv", "text/csv")
+
+# Enregistrement de l'historique local
+if "historique" not in st.session_state:
+    st.session_state.historique = []
+if st.button("🕘 Enregistrer dans l'historique"):
+    st.session_state.historique.append({"datetime": str(datetime.datetime.now()), **result})
+
+if st.checkbox("📂 Afficher l'historique"):
+    histo_df = pd.DataFrame(st.session_state.historique)
+    st.dataframe(histo_df)
+
+st.caption("Version améliorée – 261 Exchange © 2025")
+
