@@ -3,120 +3,90 @@ import requests
 import datetime
 import pandas as pd
 
-# Configuration de la page
 st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="centered")
 st.title("💱 261 Exchange – Calculateur Pro")
 st.write("Calculez le montant en crypto ou en Ariary selon l'opération.")
 
-# --- Liste des cryptos supportées ---
-cryptos = ["TRX", "BNB", "BTC", "ETH", "TON", "LTC"]
+# Liste des cryptos et frais spécifiques
+cryptos = {
+    "tron": {"symbol": "TRX", "fee": 1},
+    "bitcoin": {"symbol": "BTC", "fee": 0.00003},
+    "ethereum": {"symbol": "ETH", "fee": 0.0004},
+    "binancecoin": {"symbol": "BNB", "fee": 0.00009},
+    "ripple": {"symbol": "XRP", "fee": 0.2},
+    "dogecoin": {"symbol": "DOGE", "fee": 1},
+    "solana": {"symbol": "SOL", "fee": 0.001},
+    "litecoin": {"symbol": "LTC", "fee": 0.00015},
+    "sui": {"symbol": "SUI", "fee": 0.07},
+    "matic-network": {"symbol": "MATIC", "fee": 1},
+    "the-open-network": {"symbol": "TON", "fee": 0.03}
+}
 
-# --- Fonction : récupérer les prix via l'API Binance ---
+# Récupération des cours CoinGecko
 @st.cache_data(ttl=300)
-def get_binance_prices(symbols):
-    prices = {}
-    try:
-        for sym in symbols:
-            pair = f"{sym.upper()}USDT"
-            url = f"https://api.binance.com/api/v3/ticker/price?symbol={pair}"
-            response = requests.get(url)
-            response.raise_for_status()
-            data = response.json()
-            prices[sym.upper()] = float(data['price'])
-    except Exception as e:
-        st.error(f"Erreur de récupération des cours : {e}")
-    return prices
+def get_prices():
+    ids = ",".join(cryptos.keys())
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
+    res = requests.get(url)
+    return res.json()
 
-# --- Récupération des cours en USDT ---
-cours = get_binance_prices(cryptos)
+try:
+    prices = get_prices()
+except Exception as e:
+    st.error(f"Erreur de récupération des cours : {e}")
+    st.stop()
 
-# --- Historique de session ---
+# Choix de l’opération
+operation = st.radio("Type d'opération :", ["🔁 Dépôt Crypto ➜ USD", "🔁 Retrait USD ➜ Crypto"])
+crypto_name = st.selectbox("Choisissez la cryptomonnaie :", list(cryptos.keys()), format_func=lambda x: cryptos[x]["symbol"])
+crypto = cryptos[crypto_name]
+price_usd = prices[crypto_name]['usd']
+fee = crypto["fee"]
+
+# Taux 261 Exchange
+taux_depot = 4850
+taux_retrait = 4300
+
+# Entrées
+if operation == "🔁 Dépôt Crypto ➜ USD":
+    amount_mga = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
+    usd_amount = amount_mga / taux_depot
+    crypto_amount = usd_amount / price_usd
+    final_amount = crypto_amount - fee
+
+    st.markdown("### 📊 Résultat")
+    st.write(f"✅ {final_amount:.6f} {crypto['symbol']} à envoyer")
+    st.write(f"💸 Frais : {fee} {crypto['symbol']}")
+
+else:
+    usd_to_send = st.number_input("Montant en USD à envoyer", min_value=0.0, step=1.0)
+    amount_mga = usd_to_send * taux_retrait
+    crypto_amount = usd_to_send / price_usd
+    final_amount = crypto_amount + fee
+
+    st.markdown("### 📊 Résultat")
+    st.write(f"🪙 {final_amount:.6f} {crypto['symbol']} à recevoir")
+    st.write(f"💰 Montant total en Ariary : {amount_mga:.0f} Ar")
+    st.write(f"🧾 Frais inclus : {fee} {crypto['symbol']}")
+
+# Historique
 if "historique" not in st.session_state:
     st.session_state.historique = []
 
-# --- Formulaire ---
-operation = st.selectbox("Type d'opération :", ["Dépôt (4750 Ar/USD)", "Retrait (4300 Ar/USD)", "Retrait Crypto (4300 Ar/USD)"])
-service = st.selectbox("Service utilisé :", ["Skrill", "Neteller", "Payeer", "Binance", "Deriv", "Crypto (TRX, BNB, BTC, etc.)"])
-
-sens = st.radio("Sens de conversion :", ["🔁 Ariary ➜ USD ou Crypto", "🔁 USD ou Crypto ➜ Ariary"])
-
-# --- Entrées utilisateur ---
-montant_ariary = 0
-montant_usd = 0
-
-if sens == "🔁 Ariary ➜ USD ou Crypto":
-    montant_ariary = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
-else:
-    montant_usd = st.number_input("Montant à envoyer (en USD ou Crypto)", min_value=0.0, step=0.01)
-
-# --- Déterminer le taux et les frais ---
-if operation.startswith("Dépôt"):
-    taux = 4750
-    frais = 0.0
-    if service in ["Skrill", "Neteller", "Payeer"]:
-        if sens == "🔁 Ariary ➜ USD ou Crypto" and montant_ariary / taux <= 35:
-            frais = 0.58
-        else:
-            frais = (montant_ariary * 0.0145 / taux) if sens.startswith("🔁 Ariary") else (montant_usd * 0.0145)
-    elif service == "Crypto (TRX, BNB, BTC, etc.)":
-        frais = 1.0  # fixe par transaction
-elif operation == "Retrait (4300 Ar/USD)":
-    taux = 4300
-    frais = 0.0
-elif operation == "Retrait Crypto (4300 Ar/USD)":
-    taux = 4300
-    frais = 0.0
-
-# --- Choix de la crypto ---
-crypto_choisie = None
-if service == "Crypto (TRX, BNB, BTC, etc.)":
-    crypto_choisie = st.selectbox("Choisissez la crypto :", cryptos)
-    prix_crypto = cours.get(crypto_choisie.upper(), 0)
-    if prix_crypto == 0:
-        st.error(f"Erreur : prix introuvable pour {crypto_choisie}")
-        st.stop()
-else:
-    prix_crypto = 1  # cas USD
-
-# --- Calculs ---
-if sens == "🔁 Ariary ➜ USD ou Crypto":
-    montant_usd_brut = montant_ariary / taux
-    montant_net_usd = montant_usd_brut - frais
-    montant_en_crypto = montant_net_usd / prix_crypto
-else:
-    montant_usd_total = montant_usd + frais
-    montant_ariary = montant_usd_total * taux
-    montant_en_crypto = montant_usd / prix_crypto
-
-# --- Affichage des résultats ---
-st.markdown("### 💡 Résultat")
-if service == "Crypto (TRX, BNB, BTC, etc.)":
-    st.write(f"📤 Montant à envoyer : **{montant_en_crypto:.6f} {crypto_choisie}**")
-    st.write(f"🔸 Prix du {crypto_choisie} : {prix_crypto:.3f} USD")
-    st.write(f"🔸 Frais appliqués : **{frais:.2f} USD**")
-else:
-    st.write(f"📤 Montant à envoyer : **{montant_usd:.2f} USD**")
-    st.write(f"🔸 Frais appliqués : **{frais:.2f} USD**")
-
-if sens.startswith("🔁 USD ou Crypto ➜ Ariary"):
-    st.write(f"💵 Montant à recevoir : **{montant_ariary:.0f} Ar**")
-
-# --- Historique ---
 now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 st.session_state.historique.append({
     "Date": now,
-    "Service": service,
-    "Opération": operation,
-    "Montant MGA": f"{montant_ariary:.0f} Ar",
-    "Montant USD ou Crypto": f"{montant_usd:.2f} USD" if not crypto_choisie else f"{montant_en_crypto:.6f} {crypto_choisie}",
-    "Frais": f"{frais:.2f} USD"
+    "Type": operation,
+    "Crypto": crypto['symbol'],
+    "Montant MGA": f"{amount_mga:.0f} Ar",
+    "Montant crypto": f"{final_amount:.6f} {crypto['symbol']}",
+    "Frais": f"{fee} {crypto['symbol']}"
 })
 
+# Export CSV
 df = pd.DataFrame(st.session_state.historique)
-if st.button("📋 Copier le dernier résultat"):
-    st.code(df.iloc[-1].to_string(), language='text')
+st.download_button("⬇️ Exporter l'historique (CSV)", df.to_csv(index=False).encode(), file_name="historique_crypto.csv", mime="text/csv")
 
-st.download_button("⬇️ Exporter CSV", data=df.to_csv(index=False).encode(), file_name="historique_261_exchange.csv", mime="text/csv")
-
+# Affichage historique
 if st.checkbox("📜 Voir l'historique complet"):
     st.dataframe(df)
