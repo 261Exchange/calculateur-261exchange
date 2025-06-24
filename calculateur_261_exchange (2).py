@@ -2,7 +2,8 @@ import streamlit as st import datetime import pandas as pd import requests from 
 
 Configuration de la page et affichage du logo
 
-st.set_page_config(page_title="261 Exchange – Calculateur Pro") st.image("https://raw.githubusercontent.com/261Exchange/calculateur-261exchange/main/logo_261exchange.png", width=200)
+st.set_page_config(page_title="261 Exchange – Calculateur Pro")
+st.image("https://raw.githubusercontent.com/261Exchange/calculateur-261exchange/main/logo_261exchange.png", width=200)
 
 st.title("261 Exchange – Calculateur Pro") st.write("Calcule rapidement le solde à envoyer à tes clients selon le taux, les frais, et le service choisi.")
 
