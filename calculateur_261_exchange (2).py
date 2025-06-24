@@ -3,13 +3,11 @@ import requests
 import datetime
 import pandas as pd
 
-# --- Configuration de la page ---
 st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="centered")
-st.image("https://261exchange.com/logo.png", width=200)
 st.title("💱 261 Exchange – Calculateur Pro")
-st.write("Calculez le montant en Ariary ou en devise selon l'opération.")
+st.write("Calculez le montant en crypto ou en Ariary selon l'opération.")
 
-# --- Données des services ---
+# Cryptos avec leurs identifiants CoinGecko et frais en crypto
 cryptos = {
     "tron": {"symbol": "TRX", "fee": 1},
     "bitcoin": {"symbol": "BTC", "fee": 0.00003},
@@ -24,16 +22,17 @@ cryptos = {
     "the-open-network": {"symbol": "TON", "fee": 0.03}
 }
 
-autres_services = {
-    "Deriv": {"fee": 0, "taux_depot": 4750, "taux_retrait": 4400},
-    "Binance": {"fee": 0, "taux_depot": 4750, "taux_retrait": 4400},
-    "Skrill": {"fee": "variable", "taux_depot": 4750, "taux_retrait": 4300},
-    "Neteller": {"fee": "variable", "taux_depot": 4750, "taux_retrait": 4300},
-    "Payeer": {"fee": "variable", "taux_depot": 4750, "taux_retrait": 4300},
-    "AIRTM": {"fee": 0, "taux_depot": 4750, "taux_retrait": 4300}
+# Services fiat classiques
+fiat_services = {
+    "Skrill", "Neteller", "Payeer", "AIRTM", "Redotpay", "Bybit", "MEXC", "OKX", "Binance", "FaucetPay", "Cwallet", "Tether TRC20", "Tether BEP20"
 }
 
-# --- Récupération des cours crypto ---
+# Taux fixes
+taux_depot = 4750
+taux_retrait_crypto = 4300
+taux_retrait_fiat = 4300
+
+# Récupération des prix crypto en temps réel
 @st.cache_data(ttl=300)
 def get_prices():
     ids = ",".join(cryptos.keys())
@@ -47,74 +46,67 @@ except Exception as e:
     st.error(f"Erreur de récupération des cours : {e}")
     st.stop()
 
-# --- Choix du service ---
-all_services = list(autres_services.keys()) + list(cryptos.keys())
-service = st.selectbox("Choisissez le service :", all_services)
-operation = st.radio("Type d'opération :", ["🔁 Dépôt ➜ USD/Crypto", "🔁 Retrait USD/Crypto ➜ Ariary"])
+# Sélection
+operation = st.radio("Type d'opération :", ["🔁 Dépôt", "🔁 Retrait"])
+all_services = list(cryptos.keys()) + list(fiat_services)
+service = st.selectbox("Service utilisé :", all_services)
+sens = st.radio("Sens de conversion :", ["Ariary ➜ Montant à envoyer", "Montant reçu ➜ Ariary"])
 
-# --- Taux par défaut ---
-if service in autres_services:
-    taux = autres_services[service]["taux_depot"] if operation.startswith("🔁 Dépôt") else autres_services[service]["taux_retrait"]
-else:
-    taux = 4850 if operation.startswith("🔁 Dépôt") else 4300
-    price_usd = prices[service]["usd"]
-    symbol = cryptos[service]["symbol"]
-    fee = cryptos[service]["fee"]
+# Détection crypto ou fiat
+is_crypto = service in cryptos
 
-# --- Calculs ---
-if operation.startswith("🔁 Dépôt"):
-    amount_mga = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
-    usd_amount = amount_mga / taux
+# Affichage résultat
+if operation == "🔁 Dépôt":
+    taux = taux_depot
+    frais = 0 if not is_crypto else cryptos[service]['fee']
+elif operation == "🔁 Retrait":
+    taux = taux_retrait_crypto if is_crypto else taux_retrait_fiat
+    frais = 0  # Pas de frais au retrait
 
-    if service in autres_services:
-        frais = 0
-        if autres_services[service]["fee"] == "variable":
-            frais = 0.58 if usd_amount <= 35 else usd_amount * 0.0145
-        final_usd = usd_amount - frais
-        st.markdown("### 📊 Résultat")
-        st.write(f"✅ Montant à envoyer : **{final_usd:.2f} USD**")
-        st.write(f"💸 Frais : {frais:.2f} USD")
-
+# Calculs
+if sens == "Ariary ➜ Montant à envoyer":
+    amount_mga = st.number_input("Montant en Ariary", min_value=0.0, step=1000.0)
+    amount_usd = amount_mga / taux
+    if is_crypto:
+        price_usd = prices[service]["usd"]
+        crypto_amount = amount_usd / price_usd
+        montant_final = crypto_amount - frais
+        st.success(f"✅ {montant_final:.6f} {cryptos[service]['symbol']} à envoyer")
+        st.write(f"💸 Frais : {frais} {cryptos[service]['symbol']}")
     else:
-        crypto_amount = usd_amount / price_usd
-        final_amount = crypto_amount - fee
-        st.markdown("### 📊 Résultat")
-        st.write(f"✅ {final_amount:.6f} {symbol} à envoyer")
-        st.write(f"💸 Frais : {fee} {symbol}")
+        montant_final = amount_usd
+        st.success(f"✅ {montant_final:.2f} USD à envoyer (Frais inclus)")
 
 else:
-    usd_input = st.number_input("Montant en USD à recevoir", min_value=0.0, step=1.0)
-    amount_mga = usd_input * taux
-
-    if service in autres_services:
-        st.markdown("### 📊 Résultat")
-        st.write(f"🪙 À envoyer : **{usd_input:.2f} USD**")
-        st.write(f"💰 À recevoir : **{amount_mga:.0f} Ar**")
-
+    if is_crypto:
+        crypto_amount = st.number_input("Montant à envoyer (en crypto)", min_value=0.0, step=0.0001)
+        amount_usd = (crypto_amount - frais) * prices[service]["usd"]
+        amount_mga = amount_usd * taux
+        st.success(f"💵 Montant à recevoir : {amount_mga:.0f} Ar")
+        st.write(f"🔸 Frais : {frais} {cryptos[service]['symbol']}")
     else:
-        crypto_amount = usd_input / price_usd
-        total_with_fee = crypto_amount + fee
-        st.markdown("### 📊 Résultat")
-        st.write(f"🪙 {total_with_fee:.6f} {symbol} à recevoir")
-        st.write(f"💰 Montant total en Ariary : {amount_mga:.0f} Ar")
-        st.write(f"🧾 Frais inclus : {fee} {symbol}")
+        usd_amount = st.number_input("Montant à envoyer (en USD)", min_value=0.0, step=1.0)
+        amount_mga = usd_amount * taux
+        st.success(f"💵 Montant à recevoir : {amount_mga:.0f} Ar (Frais inclus)")
 
-# --- Historique ---
+# Historique
 if "historique" not in st.session_state:
     st.session_state.historique = []
 
 now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
 st.session_state.historique.append({
     "Date": now,
-    "Type": operation,
     "Service": service,
-    "Montant MGA": f"{amount_mga:.0f} Ar",
-    "USD ou Crypto": f"{usd_amount:.2f} USD" if service in autres_services else f"{final_amount:.6f} {symbol}",
-    "Frais": f"{frais:.2f} USD" if service in autres_services else f"{fee} {symbol}"
+    "Opération": operation,
+    "Sens": sens,
+    "Frais": f"{frais} {cryptos[service]['symbol']}" if is_crypto else "0 USD",
+    "Montant MGA": f"{amount_mga:.0f} Ar" if sens == "Montant reçu ➜ Ariary" else f"{amount_mga:.0f} Ar",
+    "Montant envoyé": f"{montant_final:.6f} {cryptos[service]['symbol']}" if is_crypto else f"{montant_final:.2f} USD"
 })
 
-# --- Export et affichage ---
+# Export CSV
 df = pd.DataFrame(st.session_state.historique)
-st.download_button("⬇️ Exporter l'historique (CSV)", df.to_csv(index=False).encode(), file_name="historique_261exchange.csv", mime="text/csv")
+st.download_button("⬇️ Exporter l'historique (CSV)", df.to_csv(index=False).encode(), file_name="historique_261.csv", mime="text/csv")
+
 if st.checkbox("📜 Voir l'historique complet"):
     st.dataframe(df)
