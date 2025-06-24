@@ -49,63 +49,62 @@ operation = st.radio("Type d'opération :", ["💰 Dépôt ➜ Montant à envoye
 service = st.selectbox("Service utilisé :", list(services.keys()))
 info = services[service]
 taux = info["depot"] if operation.startswith("💰") else info["retrait"]
+st.caption(f"💡 Taux actuel : {taux:,} Ar/USD")
 
-# === Calculs ===
+# Initialisation historique
+if "historique" not in st.session_state:
+    st.session_state.historique = []
+
+# Variables d'affichage
+montant_ariary = 0
+montant_mga = 0
+usd_net = "-"
+crypto_net = "-"
+frais = 0.0
+
 if operation == "💰 Dépôt ➜ Montant à envoyer":
-    if info["type"] == "usd":
-        montant_mga = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
+    montant_mga = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
+
+    if st.button("✅ Valider le calcul"):
         usd = montant_mga / taux
-        # Frais spécifique pour Skrill & Neteller
-        if service in ["Skrill", "Neteller"]:
-            frais = 0.58 if usd <= 35 else usd * 0.0145
+        if info["type"] == "usd":
+            frais = 0.58 if usd <= 35 and service in ["Skrill", "Neteller"] else usd * 0.0145 if service in ["Skrill", "Neteller"] else 0
             usd_net = usd - frais
+            st.success(f"💵 Montant à envoyer : {usd_net:.2f} USD")
+            st.write(f"🔸 Frais : {frais:.2f} USD")
         else:
-            frais = 0
-            usd_net = usd
-        st.success(f"💵 Montant à envoyer : {usd_net:.2f} USD")
-        st.write(f"🔸 Frais : {frais:.2f} USD")
-    else:
-        montant_mga = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
-        usd = montant_mga / taux
-        cours = prices[info["symbol"]]["usd"]
-        crypto = usd / cours
-        frais = info["frais"]
-        crypto_net = crypto - frais
-        st.success(f"🪙 Montant à envoyer : {crypto_net:.6f} {service}")
-        st.write(f"🔸 Frais : {frais:.6f} {service}")
+            symbol = info["symbol"]
+            if symbol not in prices:
+                st.error(f"Cours indisponible pour {service}")
+                st.stop()
+            cours = prices[symbol]["usd"]
+            crypto = usd / cours
+            frais = info["frais"]
+            crypto_net = crypto - frais
+            st.success(f"🪙 Montant à envoyer : {crypto_net:.6f} {service}")
+            st.write(f"🔸 Frais : {frais:.6f} {service}")
+
+        # Historique
+        now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+        st.session_state.historique.append({
+            "Date": now,
+            "Opération": operation,
+            "Service": service,
+            "Montant MGA": f"{montant_mga:.0f} Ar",
+            "Montant USD/CRYPTO": f"{usd_net:.2f} USD" if info["type"] == "usd" else f"{crypto_net:.6f} {service}",
+            "Frais": f"{frais:.2f} USD" if info["type"] == "usd" else f"{frais:.6f} {service}"
+        })
 
 else:
     if info["type"] == "usd":
         montant_usd = st.number_input("Montant à envoyer (en USD)", min_value=0.0, step=1.0)
-        montant_ariary = montant_usd * taux
-        frais = 0
-        st.success(f"💵 Montant à recevoir : {montant_ariary:.0f} Ar (Frais inclus)")
-    else:
-        montant_crypto = st.number_input(f"Montant reçu (en {service})", min_value=0.0, step=0.0001)
-        frais = info["frais"]
-        cours = prices[info["symbol"]]["usd"]
-        montant_usd = (montant_crypto - frais) * cours
-        montant_ariary = montant_usd * taux
-        st.success(f"💵 Montant à recevoir : {montant_ariary:.0f} Ar (Frais inclus)")
-        st.write(f"🔸 Frais déduits : {frais:.6f} {service}")
+        if st.button("✅ Valider le calcul"):
+            montant_ariary = montant_usd * taux
+            st.success(f"💵 Montant à recevoir : {montant_ariary:.0f} Ar (Frais inclus)")
 
-# Historique
-if "historique" not in st.session_state:
-    st.session_state.historique = []
-
-now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
-st.session_state.historique.append({
-    "Date": now,
-    "Opération": operation,
-    "Service": service,
-    "Montant MGA": f"{montant_ariary:.0f} Ar" if 'montant_ariary' in locals() else f"{montant_mga:.0f} Ar",
-    "Montant USD/CRYPTO": f"{usd_net:.2f} USD" if 'usd_net' in locals() else f"{crypto_net:.6f} {service}" if 'crypto_net' in locals() else "-",
-    "Frais": f"{frais:.2f} USD" if info["type"] == "usd" else f"{frais:.6f} {service}"
-})
-
-# Export CSV
-df = pd.DataFrame(st.session_state.historique)
-st.download_button("⬇️ Exporter historique CSV", df.to_csv(index=False).encode(), file_name="historique_261_exchange.csv", mime="text/csv")
-
-if st.checkbox("📜 Voir l'historique"):
-    st.dataframe(df)
+            now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+            st.session_state.historique.append({
+                "Date": now,
+                "Opération": operation,
+                "Service": service,
+                "Montant MGA": f"{montant_ariary:.0f} Ar",
