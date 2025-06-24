@@ -12,7 +12,9 @@ st.title("💱 261 Exchange – Calculateur Pro") st.write("Calcule rapidement l
 
 Récupération des cours crypto
 
-crypto_ids = { "TRX": "tron", "BNB": "binancecoin", "ETH": "ethereum", "BTC": "bitcoin", "XRP": "ripple", "SOL": "solana", "DOGE": "dogecoin", "LTC": "litecoin", "SUI": "sui", "MATIC": "polygon" }
+crypto_ids = { "TRX": "tron", "BNB": "binancecoin", "ETH": "ethereum", "BTC": "bitcoin", "XRP": "ripple", "SOL": "solana", "DOGE": "dogecoin", "LTC": "litecoin", "SUI": "sui", "MATIC": "polygon", "TON": "the-open-network" }
+
+crypto_frais = { "TRX": 1, "BNB": 0.00009, "ETH": 0.0004, "BTC": 0.00003, "XRP": 0.2, "SOL": 0.001, "DOGE": 1, "LTC": 0.00015, "SUI": 0.07, "MATIC": 1, "TON": 0.03 }
 
 url = f"https://api.coingecko.com/api/v3/simple/price?ids={','.join(crypto_ids.values())}&vs_currencies=usd" response = requests.get(url) crypto_prices = response.json()
 
@@ -26,7 +28,7 @@ if "historique" not in st.session_state: st.session_state.historique = []
 
 Formulaire utilisateur
 
-operation = st.selectbox("Type d'opération :", ["Dépôt (4850 Ar/USD)", "Retrait (4300 Ar/USD sauf 4400 Ar)"]) service = st.selectbox("Service utilisé :", [ "Deriv", "Skrill", "Neteller", "Payeer", "AIRTM", "Binance", "OKX", "FaucetPay", "Bitget", "Redotpay", "Tether TRC20", "Cwallet", "Tether BEP20", "Bybit", "MEXC", "TRX", "BNB", "ETH", "BTC", "XRP", "SOL", "DOGE", "LTC", "SUI", "MATIC" ])
+operation = st.selectbox("Type d'opération :", ["Dépôt (4850 Ar/USD)", "Retrait (4300 Ar/USD sauf 4400 Ar)"]) service = st.selectbox("Service utilisé :", [ "Deriv", "Skrill", "Neteller", "Payeer", "AIRTM", "Binance", "OKX", "FaucetPay", "Bitget", "Redotpay", "Tether TRC20", "Cwallet", "Tether BEP20", "Bybit", "MEXC", "TRX", "BNB", "ETH", "BTC", "XRP", "SOL", "DOGE", "LTC", "SUI", "MATIC", "TON" ])
 
 sens = st.radio("Sens de conversion :", ["🔁 Ariary ➜ USD", "🔁 USD ➜ Ariary"])
 
@@ -38,7 +40,9 @@ if sens == "🔁 Ariary ➜ USD": montant_ariary = st.number_input("Montant pay�
 
 Taux & frais
 
-if operation.startswith("Dépôt"): taux = 4850 frais = 0.0 if service in ["Skrill", "Neteller", "Payeer"]: if sens == "🔁 Ariary ➜ USD" and montant_ariary / taux <= 35: frais = 0.58 else: frais = (montant_ariary * 0.0145 / taux) if sens == "🔁 Ariary ➜ USD" else (montant_usd * 0.0145) elif service == "Tether TRC20": frais = 1.00 else: taux = 4300 if service in ["Skrill", "Neteller", "Payeer", "AIRTM"] else 4400 frais = 0.0
+is_crypto = service in crypto_ids.keys()
+
+if operation.startswith("Dépôt"): taux = 4850 frais = 0.0 if is_crypto: usd_price = crypto_prices[crypto_ids[service]]["usd"] frais = usd_price * crypto_frais[service] elif service in ["Skrill", "Neteller", "Payeer"]: if sens == "🔁 Ariary ➜ USD" and montant_ariary / taux <= 35: frais = 0.58 else: frais = (montant_ariary * 0.0145 / taux) if sens == "🔁 Ariary ➜ USD" else (montant_usd * 0.0145) elif service == "Tether TRC20": frais = 1.00 else: taux = 4300 if (is_crypto or service in ["Skrill", "Neteller", "Payeer", "AIRTM"]) else 4400 frais = 0.0
 
 Calcul
 
@@ -60,7 +64,7 @@ df = pd.DataFrame(st.session_state.historique) st.download_button("⬇️ Export
 
 Export PNG
 
-if st.button("🖼️ Exporter en PNG"): fig, ax = plt.subplots(figsize=(6, 4)) ax.axis('off') detail = [ ["Date", now], ["Opération", operation], ["Service", service], ["Sens", sens], ["Taux utilisé", f"{taux:.0f} Ar/USD"], ["Frais", f"{frais:.2f} USD"], ["Montant payé (MGA)", f"{montant_ariary:.0f} Ar" if montant_ariary > 0 else "-"], ["Montant à envoyer (USD)", f"{montant_usd:.2f} USD" if montant_usd > 0 else "-"], ["Montant final reçu", f"{montant_final:.2f} USD" if sens == "🔁 Ariary ➜ USD" else f"{montant_ariary:.0f} Ar"] ] table = ax.table(cellText=detail, colLabels=["Détail", "Valeur"], loc='center') table.auto_set_font_size(False) table.set_fontsize(10) table.scale(1, 1.5) buf = BytesIO() plt.savefig(buf, format="png") st.download_button("📥 Télécharger le PNG", data=buf.getvalue(), file_name="calcul_261_exchange.png", mime="image/png")
+if st.button("🖼️ Exporter en PNG"): fig, ax = plt.subplots(figsize=(6, 4)) ax.axis('off') detail = [ ["Date", now], ["Opération", operation], ["Service", service], ["Sens", sens], ["Taux utilisé", f"{taux:.0f} Ar/USD"], ["Frais", f"{frais:.6f} USD"], ["Montant payé (MGA)", f"{montant_ariary:.0f} Ar" if montant_ariary > 0 else "-"], ["Montant à envoyer (USD)", f"{montant_usd:.2f} USD" if montant_usd > 0 else "-"], ["Montant final reçu", f"{montant_final:.2f} USD" if sens == "🔁 Ariary ➜ USD" else f"{montant_ariary:.0f} Ar"] ] table = ax.table(cellText=detail, colLabels=["Détail", "Valeur"], loc='center') table.auto_set_font_size(False) table.set_fontsize(10) table.scale(1, 1.5) buf = BytesIO() plt.savefig(buf, format="png") st.download_button("📥 Télécharger le PNG", data=buf.getvalue(), file_name="calcul_261_exchange.png", mime="image/png")
 
 Accès admin
 
