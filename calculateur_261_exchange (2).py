@@ -5,7 +5,6 @@ import pandas as pd
 
 st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="centered")
 st.title("💱 261 Exchange – Calculateur Pro")
-st.markdown("#### 💡 *Lee • Love • Earn • Enjoy*")
 st.write("Calculez le montant en crypto ou en Ariary selon l'opération.")
 
 cryptos = {
@@ -20,8 +19,8 @@ cryptos = {
     "sui": {"symbol": "SUI", "fee": 0.07},
     "the-open-network": {"symbol": "TON", "fee": 0.03},
     "matic-network": {"symbol": "MATIC", "fee": 1},
-    "coredao-org": {"symbol": "CORE", "fee": 0.5},
-    "lee": {"symbol": "LEE", "fee": 0.1}
+    "coredao-org": {"symbol": "CORE", "fee": 1},
+    "love-earned-enjoy": {"symbol": "LEE", "fee": 1}
 }
 
 @st.cache_data(ttl=300)
@@ -57,7 +56,7 @@ sens = st.radio("Sens de conversion :", ["Ariary ➜ USD/Crypto", "USD/Crypto �
 
 is_crypto = service in cryptos
 frais = 0
-cours = prices[service]["usd"] if is_crypto else None
+cours = prices[service]["usd"] if is_crypto and service in prices else None
 
 if is_crypto:
     taux = taux_crypto_depot if operation == "Dépôt" else taux_crypto_retrait
@@ -85,7 +84,7 @@ if sens == "Ariary ➜ USD/Crypto":
         frais = 0.58 if montant_usd <= 35 else round(montant_usd * 0.0145, 2)
 
     if is_crypto or service.startswith("Tether"):
-        montant_crypto = montant_usd / cours if is_crypto else montant_usd
+        montant_crypto = montant_usd / cours if cours else 0
         montant_final = montant_crypto - frais
         st.success(f"🪙 Montant à envoyer : {montant_final:.6f} {cryptos[service]['symbol'] if is_crypto else service}")
         st.write(f"💸 Frais appliqués : {frais} {cryptos[service]['symbol'] if is_crypto else service}")
@@ -99,7 +98,7 @@ if sens == "Ariary ➜ USD/Crypto":
 else:
     if is_crypto or service.startswith("Tether"):
         montant_crypto = st.number_input(f"Montant à envoyer ({cryptos[service]['symbol'] if is_crypto else service})", min_value=0.0)
-        montant_usd = montant_crypto * cours if is_crypto else montant_crypto
+        montant_usd = montant_crypto * cours if cours else 0
         montant_ariary = montant_usd * taux
         st.success(f"💵 Montant à recevoir : {montant_ariary:.0f} Ar")
         st.write(f"💸 Frais appliqués : 0")
