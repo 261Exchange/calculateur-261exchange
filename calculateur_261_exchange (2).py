@@ -19,8 +19,8 @@ cryptos = {
     "sui": {"symbol": "SUI", "fee": 0.07},
     "the-open-network": {"symbol": "TON", "fee": 0.03},
     "matic-network": {"symbol": "MATIC", "fee": 1},
-    "core": {"symbol": "CORE", "fee": 1}
-    "love-earn-enjoy": {"symbol": "LEE", "fee": 1}
+    "core": {"symbol": "CORE", "fee": 1},
+    "love-earned-enjoy": {"symbol": "LEE", "fee": 1}
 }
 
 @st.cache_data(ttl=300)
@@ -56,7 +56,7 @@ sens = st.radio("Sens de conversion :", ["Ariary ➜ USD/Crypto", "USD/Crypto �
 
 is_crypto = service in cryptos
 frais = 0
-cours = prices[service]["usd"] if is_crypto else None
+cours = prices.get(service, {}).get("usd") if is_crypto else None
 
 if is_crypto:
     taux = taux_crypto_depot if operation == "Dépôt" else taux_crypto_retrait
@@ -67,15 +67,13 @@ elif service == "Tether TRC20":
 elif service == "Tether BEP20":
     taux = taux_fiat if operation == "Dépôt" else taux_autres_retrait
     frais = 0
-elif service in ["Skrill", "Neteller"]:
-    taux = taux_fiat if operation == "Dépôt" else taux_fiat_retrait
-elif service in ["Payeer", "AIRTM"]:
+elif service in ["Skrill", "Neteller", "Payeer", "AIRTM"]:
     taux = taux_fiat if operation == "Dépôt" else taux_fiat_retrait
 else:
     taux = taux_fiat if operation == "Dépôt" else taux_autres_retrait
 
 st.write("---")
-montant_final = ""
+result_text = ""
 if sens == "Ariary ➜ USD/Crypto":
     montant_ariary = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
     montant_usd = montant_ariary / taux
@@ -84,7 +82,7 @@ if sens == "Ariary ➜ USD/Crypto":
         frais = 0.58 if montant_usd <= 35 else round(montant_usd * 0.0145, 2)
 
     if is_crypto or service.startswith("Tether"):
-        montant_crypto = montant_usd / cours if is_crypto else montant_usd
+        montant_crypto = montant_usd / cours if cours else 0
         montant_final = montant_crypto - frais
         st.success(f"🪙 Montant à envoyer : {montant_final:.6f} {cryptos[service]['symbol'] if is_crypto else service}")
         st.write(f"💸 Frais appliqués : {frais} {cryptos[service]['symbol'] if is_crypto else service}")
@@ -98,7 +96,7 @@ if sens == "Ariary ➜ USD/Crypto":
 else:
     if is_crypto or service.startswith("Tether"):
         montant_crypto = st.number_input(f"Montant à envoyer ({cryptos[service]['symbol'] if is_crypto else service})", min_value=0.0)
-        montant_usd = montant_crypto * cours if is_crypto else montant_crypto
+        montant_usd = montant_crypto * cours if cours else 0
         montant_ariary = montant_usd * taux
         st.success(f"💵 Montant à recevoir : {montant_ariary:.0f} Ar")
         st.write(f"💸 Frais appliqués : 0")
@@ -133,3 +131,14 @@ st.download_button("⬇️ Exporter l'historique (CSV)", data=df.to_csv(index=Fa
 
 if st.checkbox("📜 Voir l'historique complet"):
     st.dataframe(df)
+
+st.subheader("📊 Taux des devises")
+data_taux = []
+for key, info in cryptos.items():
+    if key in prices:
+        usd_price = prices[key]["usd"]
+        ar_price = round(usd_price * taux_crypto_retrait)
+        data_taux.append({"Crypto": info["symbol"], "Prix (USD)": usd_price, "Prix (Ar)": ar_price})
+
+df_taux = pd.DataFrame(data_taux)
+st.dataframe(df_taux.style.background_gradient(cmap="Blues"), use_container_width=True)
