@@ -19,7 +19,7 @@ cryptos = {
     "sui": {"symbol": "SUI", "fee": 0.07},
     "the-open-network": {"symbol": "TON", "fee": 0.03},
     "matic-network": {"symbol": "MATIC", "fee": 1},
-    "coredao-org": {"symbol": "CORE", "fee": 1},
+    "core": {"symbol": "CORE", "fee": 1}
     "love-earn-enjoy": {"symbol": "LEE", "fee": 1}
 }
 
