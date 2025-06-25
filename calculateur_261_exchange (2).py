@@ -5,6 +5,7 @@ import pandas as pd
 
 st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="centered")
 st.title("💱 261 Exchange – Calculateur Pro")
+st.markdown("#### 💡 *Lee • Love • Earn • Enjoy*")
 st.write("Calculez le montant en crypto ou en Ariary selon l'opération.")
 
 cryptos = {
@@ -19,7 +20,8 @@ cryptos = {
     "sui": {"symbol": "SUI", "fee": 0.07},
     "the-open-network": {"symbol": "TON", "fee": 0.03},
     "matic-network": {"symbol": "MATIC", "fee": 1},
-    "coredao-org": {"symbol": "CORE", "fee": 1}
+    "coredao-org": {"symbol": "CORE", "fee": 0.5},
+    "lee": {"symbol": "LEE", "fee": 0.1}
 }
 
 @st.cache_data(ttl=300)
