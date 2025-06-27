@@ -36,8 +36,8 @@ except Exception as e:
     st.error(f"Erreur lors de la récupération des cours : {e}")
     st.stop()
 
-taux_crypto_depot = 4850
-taux_crypto_retrait = 4300
+taux_crypto_depot = 4900
+taux_crypto_retrait = 4250
 taux_fiat = 4750
 taux_fiat_retrait = 4300
 taux_autres_retrait = 4400
