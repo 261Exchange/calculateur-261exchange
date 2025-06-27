@@ -5,7 +5,7 @@ import pandas as pd
 
 st.set_page_config(page_title="261 Exchange – Calculateur Pro", layout="centered")
 st.title("💱 261 Exchange – Calculateur Pro")
-st.write("Calculez le montant en crypto ou en Ariary selon l'opération.")
+st.write("Calculez le montant en crypto ou en Ariary selon le sens de l’opération.")
 
 cryptos = {
     "tron": {"symbol": "TRX", "fee": 1},
@@ -27,14 +27,15 @@ cryptos = {
 def get_prices():
     ids = ",".join(cryptos.keys())
     url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd"
-    res = requests.get(url)
-    return res.json()
+    try:
+        res = requests.get(url)
+        res.raise_for_status()
+        return res.json()
+    except requests.RequestException as e:
+        st.error(f"Erreur lors de l'appel à CoinGecko : {e}")
+        return {}
 
-try:
-    prices = get_prices()
-except Exception as e:
-    st.error(f"Erreur lors de la récupération des cours : {e}")
-    st.stop()
+prices = get_prices()
 
 taux_crypto_depot = 4900
 taux_crypto_retrait = 4250
@@ -43,37 +44,53 @@ taux_fiat_retrait = 4300
 taux_autres_retrait = 4400
 
 st.subheader("🔍 Prix unitaire d’une cryptomonnaie")
-selected_crypto = st.selectbox("Choisir une crypto :", list(cryptos.keys()), format_func=lambda x: cryptos[x]["symbol"])
+selected_crypto = st.selectbox(
+    "Choisir une crypto :",
+    list(cryptos.keys()),
+    format_func=lambda x: cryptos[x]["symbol"]
+)
+
 if selected_crypto in prices:
     st.info(f"💲 1 {cryptos[selected_crypto]['symbol']} = {prices[selected_crypto]['usd']} USD")
 
 st.subheader("🔁 Conversion")
 operation = st.radio("Type d'opération :", ["Dépôt", "Retrait"])
-service = st.selectbox("Service utilisé :", [
-    "Skrill", "Neteller", "Payeer", "AIRTM", "Tether TRC20", "Tether BEP20"
-] + list(cryptos.keys()) + ["Autre"])
+service = st.selectbox(
+    "Service utilisé :",
+    [
+        "Skrill", "Neteller", "Payeer", "AIRTM",
+        "Tether TRC20", "Tether BEP20"
+    ] + list(cryptos.keys()) + ["Autre"]
+)
 sens = st.radio("Sens de conversion :", ["Ariary ➜ USD/Crypto", "USD/Crypto ➜ Ariary"])
 
 is_crypto = service in cryptos
-frais = 0
+frais = 0.0
 cours = prices.get(service, {}).get("usd") if is_crypto else None
 
 if is_crypto:
     taux = taux_crypto_depot if operation == "Dépôt" else taux_crypto_retrait
-    frais = cryptos[service]['fee'] if operation == "Dépôt" else 0
+    frais = cryptos[service]['fee'] if operation == "Dépôt" else 0.0
 elif service == "Tether TRC20":
     taux = taux_fiat if operation == "Dépôt" else taux_autres_retrait
-    frais = 1 if operation == "Dépôt" else 0
+    frais = 1.0 if operation == "Dépôt" else 0.0
 elif service == "Tether BEP20":
     taux = taux_fiat if operation == "Dépôt" else taux_autres_retrait
-    frais = 0
+    frais = 0.0
 elif service in ["Skrill", "Neteller", "Payeer", "AIRTM"]:
     taux = taux_fiat if operation == "Dépôt" else taux_fiat_retrait
 else:
     taux = taux_fiat if operation == "Dépôt" else taux_autres_retrait
 
+symbol = cryptos[service]['symbol'] if is_crypto else service
+
+if is_crypto and (cours is None or cours == 0):
+    st.error(f"Impossible de récupérer le cours pour {service}. Veuillez réessayer plus tard.")
+    st.stop()
+
 st.write("---")
 result_text = ""
+
 if sens == "Ariary ➜ USD/Crypto":
     montant_ariary = st.number_input("Montant payé (en Ariary)", min_value=0.0, step=1000.0)
     montant_usd = montant_ariary / taux
@@ -82,25 +99,29 @@ if sens == "Ariary ➜ USD/Crypto":
         frais = 0.58 if montant_usd <= 35 else round(montant_usd * 0.0145, 2)
 
     if is_crypto or service.startswith("Tether"):
-        montant_crypto = montant_usd / cours if cours else 0
+        montant_crypto = montant_usd / cours if cours else 0.0
         montant_final = montant_crypto - frais
-        st.success(f"🪙 Montant à envoyer : {montant_final:.6f} {cryptos[service]['symbol'] if is_crypto else service}")
-        st.write(f"💸 Frais appliqués : {frais} {cryptos[service]['symbol'] if is_crypto else service}")
-        result_text = f"{montant_final:.6f} {cryptos[service]['symbol'] if is_crypto else service} | {montant_ariary:.0f} Ar"
+        if montant_final < 0:
+            montant_final = 0.0
+        st.success(f"🪙 Montant à envoyer : {montant_final:.6f} {symbol}")
+        st.write(f"💸 Frais appliqués : {frais} {symbol}")
+        result_text = f"{montant_final:.6f} {symbol} | {montant_ariary:.0f} Ar"
     else:
         montant_final = montant_usd - frais
+        if montant_final < 0:
+            montant_final = 0.0
         st.success(f"💵 Montant à envoyer : {montant_final:.2f} USD")
         st.write(f"💸 Frais appliqués : {frais:.2f} USD")
         result_text = f"{montant_final:.2f} USD | {montant_ariary:.0f} Ar"
 
 else:
     if is_crypto or service.startswith("Tether"):
-        montant_crypto = st.number_input(f"Montant à envoyer ({cryptos[service]['symbol'] if is_crypto else service})", min_value=0.0)
-        montant_usd = montant_crypto * cours if cours else 0
+        montant_crypto = st.number_input(f"Montant à envoyer ({symbol})", min_value=0.0)
+        montant_usd = montant_crypto * cours if cours else 0.0
         montant_ariary = montant_usd * taux
         st.success(f"💵 Montant à recevoir : {montant_ariary:.0f} Ar")
         st.write(f"💸 Frais appliqués : 0")
-        result_text = f"{montant_crypto:.6f} {cryptos[service]['symbol'] if is_crypto else service} ➜ {montant_ariary:.0f} Ar"
+        result_text = f"{montant_crypto:.6f} {symbol} ➜ {montant_ariary:.0f} Ar"
     else:
         montant_usd = st.number_input("Montant à envoyer (en USD)", min_value=0.0)
         if service in ["Skrill", "Neteller"] and operation == "Dépôt":
@@ -123,14 +144,22 @@ st.session_state.historique.append({
     "Opération": operation,
     "Service": service,
     "Résultat": result_text,
-    "Frais": f"{frais:.6f} {cryptos[service]['symbol'] if is_crypto else 'USD'}"
+    "Frais": f"{frais:.6f} {symbol}"
 })
 
 df = pd.DataFrame(st.session_state.historique)
-st.download_button("⬇️ Exporter l'historique (CSV)", data=df.to_csv(index=False).encode(), file_name="historique_exchange.csv", mime="text/csv")
+st.download_button(
+    "⬇️ Exporter l'historique (CSV)",
+    data=df.to_csv(index=False).encode(),
+    file_name="historique_exchange.csv",
+    mime="text/csv"
+)
 
-if st.checkbox("📜 Voir l'historique complet"):
-    st.dataframe(df)
+with st.expander("📜 Voir l'historique complet"):
+    if df.empty:
+        st.info("Aucune donnée dans l’historique pour le moment.")
+    else:
+        st.dataframe(df, use_container_width=True)
 
 st.subheader("📊 Taux des devises")
 data_taux = []
@@ -138,7 +167,18 @@ for key, info in cryptos.items():
     if key in prices:
         usd_price = prices[key]["usd"]
         ar_price = round(usd_price * taux_crypto_retrait)
-        data_taux.append({"Crypto": info["symbol"], "Prix (USD)": usd_price, "Prix (Ar)": ar_price})
+        data_taux.append({
+            "Crypto": info["symbol"],
+            "Prix (USD)": usd_price,
+            "Prix (Ar)": ar_price
+        })
 
 df_taux = pd.DataFrame(data_taux)
-st.dataframe(df_taux.style.background_gradient(cmap="Blues"), use_container_width=True)
+
+if df_taux.empty:
+    st.warning("Aucun taux n’a pu être récupéré pour les cryptos.")
+else:
+    st.dataframe(
+        df_taux.style.background_gradient(cmap="Blues"),
+        use_container_width=True
+    )
